@@ -869,6 +869,8 @@
         <item quantity="few">Ștergeți %d elemente?</item>
         <item quantity="other">Ștergeți %d de elemente?</item>
     </plurals>
+    <!-- The track deletion confirmaion alert message. -->
+    <string name="placepage_delete_track_confirmation_alert_message">Sunteți sigur că doriți să ștergeți această pistă?</string>
     <!-- move track or bookmark from the list button text -->
     <string name="move">Mută</string>
     <!-- Text for the editing the Track's color button. -->

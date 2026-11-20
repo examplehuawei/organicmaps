@@ -880,6 +880,8 @@
         <item quantity="few">Обрисати %d ставке?</item>
         <item quantity="other">Обрисати %d ставки?</item>
     </plurals>
+    <!-- The track deletion confirmaion alert message. -->
+    <string name="placepage_delete_track_confirmation_alert_message">Да ли сте сигурни да желите да обришете ову путању?</string>
     <!-- move track or bookmark from the list button text -->
     <string name="move">Премести</string>
     <!-- Text for the editing the Track's color button. -->

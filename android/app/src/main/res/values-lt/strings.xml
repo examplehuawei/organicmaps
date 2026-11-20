@@ -883,6 +883,8 @@
         <item quantity="few">Ištrinti %d elementus?</item>
         <item quantity="other">Ištrinti %d elementų?</item>
     </plurals>
+    <!-- The track deletion confirmaion alert message. -->
+    <string name="placepage_delete_track_confirmation_alert_message">Ar tikrai norite pašalinti šią trasą?</string>
     <!-- move track or bookmark from the list button text -->
     <string name="move">Perkelti</string>
     <!-- Text for the editing the Track's color button. -->
