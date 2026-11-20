@@ -13,6 +13,8 @@ public class TrackRecorder
 
   public static native void nativeDiscardTrackRecording();
 
+  public static native boolean nativeCanSaveTrackRecording();
+
   public static native boolean nativeSaveTrackRecordingWithName(String name);
 
   public static native boolean nativeIsTrackRecordingEnabled();
