@@ -175,6 +175,17 @@ bool WaitFor(Fn && condition, std::chrono::milliseconds timeout = 5s)
   return condition();
 }
 
+bool WaitForBackup(TrackFile const & file, size_t pointCount)
+{
+  auto const expectedSize = sizeof(uint32_t) + pointCount * (8 * sizeof(double) + sizeof(uint8_t));
+  return WaitFor([&]
+  {
+    std::error_code error;
+    auto const size = fs::file_size(file.m_path, error);
+    return !error && size == expectedSize;
+  });
+}
+
 Points GetPoints(GpsTrack & track)
 {
   Points points;
@@ -229,16 +240,7 @@ UNIT_TEST(GpsTrack_BackupTimerWithoutNewPoints)
   track.Start();
   auto const points = MakePoints(3);
   track.AddPoints(points);
-
-  auto const expectedSize = sizeof(uint32_t) + points.size() * (8 * sizeof(double) + sizeof(uint8_t));
-  TEST(WaitFor(
-           [&]
-  {
-    std::error_code error;
-    auto const size = fs::file_size(file.m_path, error);
-    return !error && size == expectedSize;
-  }),
-       ("Pending fixes must be backed up without another location update"));
+  TEST(WaitForBackup(file, points.size()), ("Pending fixes must be backed up without another location update"));
 
   CheckPoints(file.Load(), points);
   TEST_EQUAL(track.Finalize(), points.size(), ());
@@ -258,6 +260,33 @@ UNIT_TEST(GpsTrack_RecordsWithoutCallback)
   CheckPoints(file.Load(), points);
 }
 
+UNIT_TEST(GpsTrack_CanSaveDoesNotInterruptBackup)
+{
+  TrackFile file("can_save_backup");
+  GpsTrack track(file.m_path, {}, 20ms);
+  track.Start();
+  auto const points = MakePoints(3);
+  track.AddPoints(points);
+  TEST(track.CanSave(), ());
+
+  TEST(WaitForBackup(file, points.size()), ("CanSave must leave the worker's backup timer running"));
+  CheckPoints(file.Load(), points);
+}
+
+UNIT_TEST(GpsTrack_CanSaveProcessesRestoredPoints)
+{
+  TrackFile file("can_save_restored");
+  auto const points = MakePoints(3);
+  TEST(GpsTrackStorage(file.m_path).Append({points[0], points[1]}), ());
+
+  GpsTrack track(file.m_path);
+  track.Start();
+  TEST(track.CanSave(), ());
+  track.AddPoint(points.back());
+  TEST_EQUAL(track.Finalize(), points.size(), ());
+  CheckPoints(GetPoints(track), points);
+}
+
 using df::test_support::VisualParamsFixture;
 
 UNIT_CLASS_TEST(VisualParamsFixture, Framework_SaveRecordingFinalizesBeforeCheckingGeometry)
@@ -273,6 +302,11 @@ UNIT_CLASS_TEST(VisualParamsFixture, Framework_SaveRecordingFinalizesBeforeCheck
     tracker.Stop();
   });
 
+  framework.StartTrackRecording();
+  TEST(!framework.CanSaveTrackRecording(), ());
+  framework.DiscardTrackRecording();
+  TEST(!framework.IsTrackRecordingEnabled(), ());
+
   auto start = MakePoint(100.0, 0.0);
   start.m_longitude = 180.0;
   start.m_altitude = 100.0;
@@ -283,6 +317,13 @@ UNIT_CLASS_TEST(VisualParamsFixture, Framework_SaveRecordingFinalizesBeforeCheck
   tracker.OnLocationUpdated(finish);
   TEST(!framework.SaveTrackRecordingWithName("Stationary"), ());
 
+  framework.StartTrackRecording();
+  tracker.OnLocationUpdated(start);
+  tracker.OnLocationUpdated(finish);
+  TEST(!framework.CanSaveTrackRecording(), ("A repeated final fix does not make a valid track"));
+  framework.DiscardTrackRecording();
+  TEST(!framework.IsTrackRecordingEnabled(), ());
+
   finish.m_longitude = -179.99998;
   finish.m_altitude = 102.0;
   auto missingAltitude = finish;
@@ -290,6 +331,9 @@ UNIT_CLASS_TEST(VisualParamsFixture, Framework_SaveRecordingFinalizesBeforeCheck
   framework.StartTrackRecording();
   tracker.OnLocationUpdated(start);
   tracker.OnLocationUpdated(missingAltitude);
+  TEST(framework.CanSaveTrackRecording(), ("A distinct deferred final fix makes a valid track"));
+  TEST(framework.IsTrackRecordingEnabled(), ());
+  TEST_EQUAL(tracker.GetTrackStatistics().m_length, 0.0, ());
   TEST(framework.SaveTrackRecordingWithName("Missing altitude"), ());
   auto const * incomplete = bookmarks.GetTrack(framework.GetCurrentPlacePageInfo().GetTrackId());
   TEST(incomplete, ());
